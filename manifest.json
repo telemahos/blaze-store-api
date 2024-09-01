@@ -1,0 +1,28 @@
+{
+    "manifest_version": 3,
+    "name": "Blaze Store",
+    "version": "0.1.1",
+    "description": "A Chrome extension to add functionality to the blaze store.",
+    "permissions": [
+        "webRequest", 
+        "storage", 
+        "activeTab", 
+        "scripting"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "host_permissions": [
+        "https://www.demoblaze.com/*"
+    ],
+    "content_scripts": [
+      {
+        "matches": ["https://www.demoblaze.com/*"],
+        "js": ["content.js"],
+        "run_at": "document_end" 
+      }
+    ],
+    "action": {
+        "default_popup": "popup.html"
+    }
+}
