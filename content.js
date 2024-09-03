@@ -1,31 +1,57 @@
 console.log("content.js geladen");
 
-// Stelle sicher, dass das Skript erst geladen wird, wenn die Seite vollständig geladen ist
-// document.addEventListener("DOMContentLoaded", () => {
-     
-// window.addEventListener('load', () => {
-// const init = () => {
-    const observer = new MutationObserver((mutations) => {
-        // Suche nach allen Preis-Elementen
-        const priceElements = document.querySelectorAll('#tbodyid .card-block h5');  // Passe den Selektor an, falls nötig
-        console.log("Gefundene Preis-Elemente: ", priceElements);
-    
-        priceElements.forEach(priceElement => {
-            // Überprüfe, ob das Element bereits das greetingSpan hat, um Duplikate zu vermeiden
-            if (!priceElement.querySelector('span.greeting')) {
-                // Erstelle das greetingSpan Element
-                const greetingSpan = document.createElement('span');
-                greetingSpan.textContent = 'Hallo, wie geht’s?';
-                greetingSpan.style.fontWeight = 'normal';
-                greetingSpan.style.marginLeft = '10px';
-                greetingSpan.className = 'greeting'; // Klasse hinzufügen, um später Duplikate zu vermeiden
-    
-                // Füge es dem Preis-Element hinzu
-                priceElement.appendChild(greetingSpan);
+const observer = new MutationObserver((mutations) => {
+    const priceElements = document.querySelectorAll('#tbodyid .card-block h5');
+
+    priceElements.forEach(priceElement => {
+        let greetingSpan = priceElement.querySelector('span.greeting');
+
+        // Falls kein span.greeting existiert, erstelle ein neues
+        if (!greetingSpan) {
+            greetingSpan = document.createElement('span');
+            greetingSpan.style.fontWeight = 'normal';
+            greetingSpan.style.marginLeft = '10px';
+            greetingSpan.className = 'greeting';
+            priceElement.appendChild(greetingSpan);
+        }
+
+        const cardBlock = priceElement.closest('.card-block');
+        if (cardBlock) {
+            const linkElement = cardBlock.querySelector('a[href*="prod.html?idp_="]');
+            if (linkElement) {
+                const hrefValue = linkElement.getAttribute('href');
+                const urlParams = new URLSearchParams(hrefValue.split('?')[1]);
+                const productId = urlParams.get('idp_');
+
+                if (productId) {
+                    loadProducts(productId, (product) => {
+                        if (product) {
+                            greetingSpan.textContent = "ID: " + product.title; // Aktualisiere den Textinhalt
+                        }
+                    });
+                }
             }
-        });
+        }
     });
-    
-    // Beobachte den gesamten Body auf Änderungen
-    observer.observe(document.body, { childList: true, subtree: true });
-    
+});
+
+observer.observe(document.body, { childList: true, subtree: true });
+
+function loadProducts(itemNr, callback) {
+    chrome.storage.local.get('products', function(result) {
+        if (result.products) {
+            const product = result.products.Items.find(item => item.id == itemNr);
+
+            if (product) {
+                console.log("Produkt: ", product);
+                callback(product);
+            } else {
+                console.log('Produkt nicht gefunden für itemNr:', itemNr);
+                callback(null);
+            }
+        } else {
+            console.log('Keine Produkte gefunden');
+            callback(null);
+        }
+    });
+}

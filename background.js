@@ -7,48 +7,43 @@ async function fetchProducts() {
         const response = await fetch(url);
         if (!response.ok) throw new Error('Netzwerkfehler');
         
-        const data = await response.json();
-        console.log("data", data);
+        const newData = await response.json();
+        console.log("New data", newData);
 
-        // Speichere die Daten mit chrome.storage
-        chrome.storage.local.set({ products: data }, function() {
-            console.log('Produkte gespeichert');
+        // Alte Daten abrufen
+        chrome.storage.local.get('products', function(result) {
+            let allProducts = [];
+
+            if (result.products) {
+                // Wenn es bereits gespeicherte Produkte gibt, diese mit den neuen kombinieren
+                allProducts = result.products.Items.concat(newData.Items);
+            } else {
+                // Falls keine alten Produkte vorhanden sind, nutze nur die neuen
+                allProducts = newData.Items;
+            }
+
+            // Speichere die kombinierten Daten
+            chrome.storage.local.set({ products: { Items: allProducts } }, function() {
+                console.log('Produkte kombiniert und gespeichert');
+            });
         });
+
     } catch (error) {
         console.error('Fehler:', error);
     }
 }
 
+// Rufe fetchProducts auf, wenn ein Tab aktualisiert wird
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete') {
+        fetchProducts();
+    }
+});
+
+// Rufe fetchProducts auf, wenn ein neuer Tab aktiviert wird
+chrome.tabs.onActivated.addListener((activeInfo) => {
+    fetchProducts();
+});
+
+// Initialer Aufruf beim Laden des Hintergrundskripts
 fetchProducts();
-
-
-
-// function loadProducts() {
-//     chrome.storage.local.get('products', function(result) {
-//         if (result.products) {
-//             console.log(result.products.Items); // Hier stehen die abgerufenen Zitate
-//         } else {
-//             console.log('Keine Zitate gefunden');
-//         }
-//     });
-// }
-
-// Beispielaufruf, um die Zitate zu laden
-// loadProducts();
-
-
-// async function fetchQuotes() {
-//     const url = `https://api.demoblaze.com/entries`;
-    
-//     try {
-//       const response = await fetch(url);
-//       if (!response.ok) throw new Error('Netzwerkfehler');
-      
-//       const data = await response.json();
-//       console.log(data); // Hier kannst du die Daten speichern oder weiterverarbeiten
-//     } catch (error) {
-//       console.error('Fehler:', error);
-//     }
-//   }
-
-//   fetchQuotes();
