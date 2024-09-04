@@ -1,49 +1,67 @@
 console.log("Blaze Store Background Script Loaded");
 
-async function fetchProducts() {
-    const url = `https://api.demoblaze.com/entries`;
+let allProducts = [];
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log("Message received in background:", request);
+    if (request.action === "getProduct") {
+        const product = allProducts.find(p => p.id == request.productId);
+        console.log("Product found:", product);
+        sendResponse({ product: product });
+    } else if (request.action === "fetchProducts") {
+        fetchAndStoreProducts(request.type).then(products => {
+            sendResponse({ status: "Fetching products", products: products });
+        }).catch(error => {
+            console.error("Error fetching products:", error);
+            sendResponse({ status: "Failed", error: error.message });
+        });
+    }
+    return true;  // Keeps the message channel open for asynchronous response
+});
+
+async function fetchAndStoreProducts(type = "entries") {
+    const url = type === "pagination"
+        ? "https://api.demoblaze.com/pagination"
+        : "https://api.demoblaze.com/entries";
+
+    console.log(`Attempting to fetch data from ${url}`);
 
     try {
         const response = await fetch(url);
-        if (!response.ok) throw new Error('Netzwerkfehler');
-        
+        if (!response.ok) throw new Error(`Network error: ${response.status} ${response.statusText}`);
+
         const newData = await response.json();
-        console.log("New data", newData);
+        console.log(`Fetched data from ${type} API:`, JSON.stringify(newData));
 
-        // Alte Daten abrufen
-        chrome.storage.local.get('products', function(result) {
-            let allProducts = [];
+        if (!newData.Items || !Array.isArray(newData.Items)) {
+            throw new Error(`Invalid data structure from ${type} API`);
+        }
 
-            if (result.products) {
-                // Wenn es bereits gespeicherte Produkte gibt, diese mit den neuen kombinieren
-                allProducts = result.products.Items.concat(newData.Items);
+        newData.Items.forEach(newItem => {
+            const existingItemIndex = allProducts.findIndex(item => item.id === newItem.id);
+            if (existingItemIndex !== -1) {
+                allProducts[existingItemIndex] = newItem;
             } else {
-                // Falls keine alten Produkte vorhanden sind, nutze nur die neuen
-                allProducts = newData.Items;
+                allProducts.push(newItem);
             }
-
-            // Speichere die kombinierten Daten
-            chrome.storage.local.set({ products: { Items: allProducts } }, function() {
-                console.log('Produkte kombiniert und gespeichert');
-            });
         });
 
+        console.log(`Total products stored: ${allProducts.length}`);
+        console.log('Product IDs:', allProducts.map(item => item.id).join(', '));
+
+        return newData.Items;  // Return the newly fetched products
+
     } catch (error) {
-        console.error('Fehler:', error);
+        console.error('Error while fetching/storing products:', error);
+        throw error;
     }
 }
 
-// Rufe fetchProducts auf, wenn ein Tab aktualisiert wird
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (changeInfo.status === 'complete') {
-        fetchProducts();
-    }
-});
+// Initial fetch
+fetchAndStoreProducts();
 
-// Rufe fetchProducts auf, wenn ein neuer Tab aktiviert wird
-chrome.tabs.onActivated.addListener((activeInfo) => {
-    fetchProducts();
-});
-
-// Initialer Aufruf beim Laden des Hintergrundskripts
-fetchProducts();
+// Fetch every 5 minutes
+setInterval(() => {
+    console.log("Performing periodic fetch of products...");
+    fetchAndStoreProducts();
+}, 5 * 60 * 1000);
